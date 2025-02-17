@@ -1,6 +1,10 @@
 from enum import Enum
 import random
 import os
+from time import sleep
+
+os.system("mode con: cols=80 lines=30") 
+sleep(1)
 
 def cl():
   os.system("cls")
@@ -20,26 +24,48 @@ class _Type(Enum):
   VAN_HELSING = 1
   
 class Card():
-  def __init__(self, color: Colors, value):
+  def __init__( self, color: Colors, value ):
+    # Initialize a card with a color and value
+    
     self.color = color
     self.value = value
-    self.c = Colors(color).name
+    self.c = Colors( color ).name
     self.rev = False
+    
+  def view( self ):
+    # Return a string representation of the card with color formatting
+    
+    _end : str = "\033[00m"
+    color : str = ""
+
+    match self.value:
+      case 0: # RED
+        color = "\033[91m"
+
+      case 1: # BLUE
+        color = "\033[94m"
+
+      case 2: # PURPLE
+        color = "\033[95m"
+        
+      case 3: # YELLOW
+        color = "\033[93m"
+      
+    return f"{color}{self.c}{self.value}{_end}"
     
 class Player():
   def __init__(self, _type:_Type):
     self._type = _type
-    self.cards, self.deck = ([],)*2
+    self.cards, self.deck = ([],) * 2
     self.hp = 12
     self.revealed_cards = list()
     self.has_revealed_card = False
     self.name = str.title(_Type(self._type).name)
-    
+     
   def reveal(self, index: int):
     self.cards[index].rev = True
     self.revealed_cards.append({0: self.cards[index], 1: index+1})
     self.has_revealed_card = True
-    pass
   
   def fold_all(self):
     for card in self.cards: card.rev = False
@@ -50,9 +76,60 @@ class Player():
     
   def trade(self, index: int, opponent):
     self.cards[index], opponent.cards[index] = opponent.cards[index], self.cards[index]
+  
+  
+class Game():
+
+  def __init__( self ):
+    self.dracula = Player( _Type.DRACULA )
+    self.van = Player( _Type.VAN_HELSING )
+    self.people = [ 4 ] * 5
+    self.color_ranking = list( range( 0, 4 ) )
+    self.discard_pile = []
+    self.init_stack : list[Card] = []
+    for i in range( 0, 4 ):
+      for j in range( 1, 9 ):
+        init_stack.append( Card( i, j ) )
+    
+    random.shuffle(self.color_ranking)
+    self.card_stack = self.init_stack
+    random.shuffle(self.card_stack)
+    
+  def start( self ):
+
+    for r in range( 5 ):
+      self.round()
+    
+    print( "All rounds are finished without Van-Helsing winning... so: Dracula Wins!!" )
+    
+  def round( self ):
+    
+    while True:
+      self.dracula.cards = self.card_stack[-5:]
+      del self.card_stack[-5:]
+      
+      self.van.cards = self.card_stack[-5:]
+      del self.card_stack[-5:]
+      
+      switch = True
+      self.prompt( "Hello and welcome!" )
+      
+      while ( True ):
+        
+        player, opponent = ( self.van, self.dracula ) if switch else ( self.dracula, self.van )
+        
+        self.cl()
+        op_cards = list( map( lambda card: f"{card[0].c} {card[0].value} in District {card[1]}", opponent.revealed_cards ) ) if opponent.has_revealed_card else ""
+        
+        self.prompt( f"""It's {player.name}'s turn!\n""" )
+        
+  def out( self, prompt: str, last_line: str ):
+    columns, lines = os.get_terminal_size()
+    
+    print ()
     pass
 
-# :Pre game
+# :Pre game operation
 dracula_hp = 12
 people = [ 4 ]*5
 
@@ -74,40 +151,53 @@ van = Player(_Type.VAN_HELSING)
 # End of :Pre game
 
 # Game Starts:
-con()
-print(f"The Trump Color is \"{Colors(color_ranking[0]).name.title()}\"")
-con()
 
 # loop for rounds
 for r in range(5):
+  
+  def prompt(prompt: str):
+  # Gives a brief summery of current situation of thr game
+    brief = f"""Round \033[91m {r+1}\033[00m
+Alive: \033[96m {people}\033[00m
+The Trump Color is \"{Colors(color_ranking[0]).name.title()}\""""
+    
+    cl()
+    size = { 0: os.get_terminal_size().lines, 1: os.get_terminal_size().columns }
+    con = str(brief+"\n___________________________\n"+prompt)
+    line_count = con.count("\n") + 1
+    
+    
+    print(con, end="")
+    ns = ""
+    for _ in range(0, size[0] - line_count):
+      ns += "\n"
+    print(ns + "\nPress Enter to continue...", end="")
+    input()
   
   dracula.cards = card_stack[-5:]
   del card_stack[-5:]
 
   van.cards = card_stack[-5:]
   del card_stack[-5:]
-  
-  print(f"Round {r+1} has started")
-  print("Alive:", people)
-  
-  con()
-  
-  player, opponent = van, dracula
-  
+    
+  switch = True
+  prompt("Hello and welcome!")
   # :a loop for turns
   while (True):
     
     # Switch player each turn
-    player, opponent = opponent, player
+    player, opponent = (van, dracula) if switch else (dracula, van)
     
     cl()
-    print(f"It's {player.name}'s turn!\n\n")
-    print(f"Cards in your tray:\n {list(map(lambda card: f"{card.c} {card.value}{" REVEALED" if card.rev else "" }", player.cards))}")
-    
+    op_cards = list(map(lambda card: f"{card[0].c} {card[0].value} in District {card[1]}", opponent.revealed_cards)) if opponent.has_revealed_card else ""
+
+    prompt(f"""It's {player.name}'s turn!\n
+Cards in your tray:
+{list(map(lambda card: f"{card.c} {card.value}{" REVEALED" if card.rev else "" }", player.cards))}
+{op_cards}"""
+)
+    input()
     if opponent.has_revealed_card: 
-      print(f"{opponent.name}'s revealed cards: {list(map(lambda card: f"{card[0].c} {card[0].value} in District {card[1]}", opponent.revealed_cards))}")
-      
-    if player.has_revealed_card: 
       print(f"Your's revealed cards: {list(map(lambda card: f"{card[0].c} {card[0].value} in District {card[1]}", player.revealed_cards))}")
 
     drawn_card = card_stack.pop()
