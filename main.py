@@ -35,6 +35,8 @@ class Card():
   def view( self ):
     # Return a string representation of the card with color formatting
     
+    # Should Use colorify method!!!!!
+    
     _end : str = "\033[00m"
     color : str = ""
 
@@ -52,6 +54,26 @@ class Card():
         color = "\033[93m"
       
     return f"{color}{self.c}{self.value}{_end}"
+  
+def colorify( text: str, color: Colors ):
+
+  _end : str = "\033[00m"
+  color : str = ""
+
+  match color:
+    case Colors.RED: # RED
+      color = "\033[91m"
+
+    case Colors.BLUE: # BLUE
+      color = "\033[94m"
+
+    case Colors.PURPLE: # PURPLE
+      color = "\033[95m"
+      
+    case Colors.YELLOW: # YELLOW
+      color = "\033[93m"
+    
+  return f"{color}{text}{_end}"
     
 class Player():
   def __init__(self, _type:_Type):
@@ -81,6 +103,7 @@ class Player():
 class Game():
 
   def __init__( self ):
+    self.stat : bool = False # Whether the game has started.
     self.dracula = Player( _Type.DRACULA )
     self.van = Player( _Type.VAN_HELSING )
     self.people = [ 4 ] * 5
@@ -90,9 +113,9 @@ class Game():
     for i in range( 0, 4 ):
       for j in range( 1, 9 ):
         init_stack.append( Card( i, j ) )
+    self.card_stack = self.init_stack
     
     random.shuffle(self.color_ranking)
-    self.card_stack = self.init_stack
     random.shuffle(self.card_stack)
     
   def start( self ):
@@ -101,15 +124,26 @@ class Game():
       self.round()
     
     print( "All rounds are finished without Van-Helsing winning... so: Dracula Wins!!" )
+  
+  def check_win( self ) -> int:
+    # Checks whether anyone has won
+    # 0: No onw has won yet
+    # 1: Dracula has won
+    # 2: Van-Helsing has won
     
+    if self.dracula.hp == 0: 
+      return 2
+  
+    return 0  
+  
   def round( self ):
     
     while True:
-      self.dracula.cards = self.card_stack[-5:]
-      del self.card_stack[-5:]
+      self.dracula.cards = self.card_stack[ -5: ]
+      del self.card_stack[ -5: ]
       
-      self.van.cards = self.card_stack[-5:]
-      del self.card_stack[-5:]
+      self.van.cards = self.card_stack[ -5: ]
+      del self.card_stack[ -5: ]
       
       switch = True
       self.prompt( "Hello and welcome!" )
@@ -119,15 +153,52 @@ class Game():
         player, opponent = ( self.van, self.dracula ) if switch else ( self.dracula, self.van )
         
         self.cl()
-        op_cards = list( map( lambda card: f"{card[0].c} {card[0].value} in District {card[1]}", opponent.revealed_cards ) ) if opponent.has_revealed_card else ""
+        op_cards = list( map( lambda card: f"{ card[0].c } { card[0].value } in District { card[1]} ", opponent.revealed_cards ) ) if opponent.has_revealed_card else ""
         
-        self.prompt( f"""It's {player.name}'s turn!\n""" )
+        self.prompt( f"""It's { player.name }'s turn!\n""" )
         
-  def out( self, prompt: str, last_line: str ):
+  def write( self, text: str ):
+    _out: str = None
     columns, lines = os.get_terminal_size()
     
-    print ()
-    pass
+    
+    
+    print( _out, end = "" )
+    
+    
+  def ask ( 
+    self,
+    text: str,
+    query: str | None = "Enter the number and press Enter: "
+  ) -> int:
+    self.write(text, query)
+    try:
+      _in = int(input())
+    except( NotImplemented ):
+      self.ask(
+        text,
+        colorify(
+          str + "\n\nYou should enter a number!",
+          Colors.RED
+          )
+      )
+    return _in
+  
+  def brief( self ) -> str:
+    # Gives a brief report of game state
+    # returns str
+    
+    if self.stat:
+      pass
+    else:
+      return "Game hasn't started yet!"
+  
+  def prompt( self, text: str ) -> int:
+    # Prompts the given text and returns the number
+    # user inputs
+    brief = self.brief()
+    
+    return 0
 
 # :Pre game operation
 dracula_hp = 12
