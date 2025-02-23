@@ -18,72 +18,78 @@ class Colors(Enum):
   BLUE = 1
   PURPLE = 2
   YELLOW = 3
+  GREEN = 4
   
 class _Type(Enum):
   DRACULA = 0
   VAN_HELSING = 1
   
+  
 class Card():
-  def __init__( self, color: Colors, value ):
+  def __init__( self, color: Colors, value: int ):
     # Initialize a card with a color and value
     
     self.color = color
     self.value = value
-    self.c = Colors( color ).name
+    self.c = str.title( Colors( color ).name )
     self.rev = False
     
-  def view( self ):
+  def view( self ) -> str:
     # Return a string representation of the card with color formatting
     
-    # Should Use colorify method!!!!!
-    
-    _end : str = "\033[00m"
-    color : str = ""
-
-    match self.value:
-      case 0: # RED
-        color = "\033[91m"
-
-      case 1: # BLUE
-        color = "\033[94m"
-
-      case 2: # PURPLE
-        color = "\033[95m"
-        
-      case 3: # YELLOW
-        color = "\033[93m"
-      
-    return f"{color}{self.c}{self.value}{_end}"
+    text = colorify( f"{ str( self.value ) } { self.c }", self.color )
+    return text
   
 def colorify( text: str, color: Colors ):
+  
+  if type(color) == int:
+    color = Colors(color)
 
   _end : str = "\033[00m"
-  color : str = ""
+  style : str = ""
 
   match color:
     case Colors.RED: # RED
-      color = "\033[91m"
-
-    case Colors.BLUE: # BLUE
-      color = "\033[94m"
-
-    case Colors.PURPLE: # PURPLE
-      color = "\033[95m"
+      style = "\033[91m"
+    
+    case Colors.GREEN: # GREEN
+      style = "\033[92m"
       
     case Colors.YELLOW: # YELLOW
-      color = "\033[93m"
+      style = "\033[93m"
+
+    case Colors.BLUE: # BLUE
+      style = "\033[94m"
+
+    case Colors.PURPLE: # PURPLE
+      style = "\033[95m"
     
-  return f"{color}{text}{_end}"
+    case _:
+      style = "\033[93m"
+    
+  return f"{style}{text}{_end}"
     
 class Player():
   def __init__(self, _type:_Type):
     self._type = _type
     self.cards, self.deck = ([],) * 2
     self.hp = 12
-    self.revealed_cards = list()
+    self.revealed_cards: list[Card] = []
     self.has_revealed_card = False
     self.name = str.title(_Type(self._type).name)
-     
+    
+  def view_cards( self ) -> str:
+    text = ""
+    for i, card in enumerate( self.cards ):
+      text += f"{ str.upper( chr( i + ord( "a" ) ) ) }. { card.view() }\n"
+    return text
+  
+  def view_revealed( self ) -> str:
+    text = ""
+    for i, card in enumerate( self.revealed_cards ):
+      text += f"{ str.upper( chr( i + ord( "a" ) ) ) }. { card[0].view() } in District { card[1] }, "
+    return text
+
   def reveal(self, index: int):
     self.cards[index].rev = True
     self.revealed_cards.append({0: self.cards[index], 1: index+1})
@@ -101,7 +107,6 @@ class Player():
   
   
 class Game():
-  
   class ColorRanking():
     
     def __init__(self):
@@ -109,8 +114,17 @@ class Game():
       self.colors = list( range( 0, 4 ) )
       random.shuffle( self.colors )
       
+    def view( self ) -> str:
+      text = f"The current Trump Color is: \"{self.get_trump()}\"\n"
+      text += "Other colors in order:\n"
+      for i, color in enumerate( self.colors[1:] ):
+        text += f"{ i + 1 }. { str.title( Colors( color ).name ) }\n"
+      return text
+      
     def get_trump( self ) -> str:
-      return str.title( Colors( self.colors[0] ).name )
+  
+      color_name = str.title( Colors( self.colors[0] ).name )
+      return colorify( color_name, Colors( self.colors[0] ) )
     
     def get( self, index: int ) -> str:
       return str.title( Colors( self.colors[index] ).name )
@@ -124,26 +138,25 @@ class Game():
     self.dracula = Player( _Type.DRACULA )
     self.van = Player( _Type.VAN_HELSING )
     self.people = [ 4 ] * 5
-    self.color_ranking = list( range( 0, 4 ) )
+    self.color_ranking = self.ColorRanking()
     self.discard_pile = []
     self.init_stack : list[Card] = []
     for i in range( 0, 4 ):
       for j in range( 1, 9 ):
         self.init_stack.append( Card( i, j ) )
     self.card_stack = self.init_stack
-    
-    random.shuffle(self.color_ranking)
+
     random.shuffle(self.card_stack)
     
   def start( self ):
     self.prompt( "Hello and welcome!" )
 
     for r in range( 5 ):
-      self.rounds = r
+      self.rounds = r + 1
       self.round()
     
     self.rounds = 0
-    print( "All rounds are finished without Van-Helsing winning... so: Dracula Wins!!" )
+    self.prompt( "All rounds are finished without Van-Helsing winning... so: Dracula Wins!!" )
   
   def check_win( self ) -> int:
     # Checks whether anyone has won
@@ -159,23 +172,83 @@ class Game():
   def round( self ):
     # Things that happen each round
     
-    self.dracula.cards = self.card_stack[ -5: ]
-    del self.card_stack[ -5: ]
+    self.dracula.cards = self.card_stack[ :5 ]
+    del self.card_stack[ :5 ]
     
-    self.van.cards = self.card_stack[ -5: ]
-    del self.card_stack[ -5: ]
+    self.van.cards = self.card_stack[ :5 ]
+    del self.card_stack[ :5 ]
     
+    self.player, self.opponent = self.van, self.dracula
     switch = True
-    self.prompt( "Hello and welcome!" )
 
     while True:
       # Each turn
-      player, opponent = ( self.van, self.dracula ) if switch else ( self.dracula, self.van )
+      self.player, self.opponent = ( self.opponent, self.player ) if switch else ( self.player, self.opponent )
       
-      self.cl()
-      op_cards = list( map( lambda card: f"{ card[0].c } { card[0].value } in District { card[1]} ", opponent.revealed_cards ) ) if opponent.has_revealed_card else ""
+      pro = f"It's { self.player.name }'s turn!\n"
+      pro += f"Cards in your tray:\n{ self.player.view_cards() }\n"
+      drawn_card = self.card_stack.pop()
+      pro += f"The drawn card is: \"{drawn_card.view()}\"\n\n"
+      pro += f"What will it be?\n{colorify( "1. Dismiss\n", Colors.GREEN ) }{colorify( "2. Replace\n", Colors.BLUE )}"
+
+      choice: int = self.ask( pro )
       
-      self.prompt( f"""It's { player.name }'s turn!\n""" )
+      if choice == 1:
+        self.dismiss( drawn_card )
+      else:
+        self.replace( drawn_card )
+      
+  def dismiss( self, drawn_card: Card ):
+    match drawn_card.value:
+      case 1:
+        # Reveal one of your cards.
+        inp = self.ask("Choose a district to reveal:")
+        self.player.reveal(inp-1)
+        
+      case 2:
+        # Reveal the top card of the deck.
+        self.prompt(f"The next card is {self.card_stack[-1]}")
+        
+      case 3:
+        inp = self.ask("Choose a district to reveal your opponent's card:")
+        self.opponent.reveal(inp-1)
+        
+      case 4:
+        # Swap two of your cards
+        first = self.ask(f"""Choose the first district to swap:
+Cards in your tray: {self.player.view_cards()}""")
+        
+        sec = self.ask(f"""Choose the second district to swap:
+Cards in your tray: {self.player.view_cards()}""")
+
+        self.player.swap(first-1, sec-1)
+
+      case 5:
+        # Play another turn. This effect applies even if your
+        # opponent has called the end of the round on their turn.
+        self.prompt("sakht shod ke baba :(")
+        
+      case 6:
+        # Swap (trade) one of your cards with your opponent.
+        # Both cards must face the same District.
+        district = self.ask("Choose the district to trade:")
+        self.player.trade(district-1, self.opponent)
+      
+      case 7:
+        # Swap the Trump Color Token with another Color Token
+        self.prompt( self.color_ranking.view() )
+        new_trump = self.ask( "Whats the new Trump Color?" )
+        self.color_ranking.new_trump( new_trump )
+
+      case 8:
+        # You can’t discard an 8 unless there are at least 6 cards in 
+        # the discard pile. Immediately end the round. 
+        # Your opponent does not play their turn.
+        if len(self.discard_pile) > 5:
+          pass
+
+    self.discard_pile.append(drawn_card)
+        
 
   def brief( self ) -> str:
     # Gives a brief report of game state
@@ -183,13 +256,18 @@ class Game():
 
     final = ""
     if self.rounds > 0:
-      final += colorify( f"Round {self.round}\n\n", Colors.BLUE )
-      final += f"Alive: {self.people}\n"
-      final += f"The Trump Color is \"{Colors(self.color_ranking[0]).name.title()}\"\n"
+      final += colorify( f"Round {self.rounds}\n", Colors.BLUE )
+      final += f"The Trump Color is \"{self.color_ranking.get_trump()}\"\n\n"
       final += colorify( f"Dracula's HP: {self.dracula.hp}\n\n", Colors.RED )
-      final += "\n___________________________\n"
+      final += f"    Van's revealed cards: {self.van.view_revealed()}\n"
+      final += f"                   Alive: {self.people}\n"
+      final += f"Dracula's revealed cards: {self.dracula.view_revealed()}\n"
+      final += "\n___________________________\n\n"
+      
+      
+      # if self.pla
     else:
-      final = "Game hasn't started yet!"
+      final = "Game hasn't started yet!\n___________________________\n\n"
     
     return final
 
@@ -200,7 +278,7 @@ class Game():
     
     line_count = text.count( "\n" ) + 1
     
-    for _ in range( 0, lines - line_count ):
+    for _ in range( 0, lines - line_count - 1 ):
       _out += "\n"
     
     
@@ -214,17 +292,18 @@ class Game():
   ) -> int:
     # Asks the given query and returns the number
     # user inputs
-    
-    self.write( text ) 
+    self.clear()
+    brief = self.brief()
+    self.write( brief + text )
     
     print( query, end = "" )
     try:
       _in = int(input())
-    except( NotImplemented ):
+    except ValueError:
       self.ask(
         text,
         colorify(
-          str + "\n\nYou should enter a number!",
+          "You should enter a number! Please enter a valid number this time:",
           Colors.RED
           )
       )
@@ -235,166 +314,13 @@ class Game():
     self.clear()
     brief = self.brief()
     self.write( brief + text )
-    print( "\nPress Enter to continue...", end = "" )
+    print( "\rPress Enter to continue...", end = "" )
     input()
     
   def clear( self ):
     os.system( "cls" )
+    
+  
 
 game = Game()
-
 game.start()
-
-# # :Pre game operation
-# dracula_hp = 12
-# people = [ 4 ]*5
-
-# color_ranking = list( range(0,4) )
-# random.shuffle(color_ranking)
-
-# discard_pile = []
-
-# init_stack:list = []
-# for i in range(0,4):
-#   for j in range(1,9):
-#     init_stack.append(Card(i, j))
-
-# card_stack = init_stack
-# random.shuffle(card_stack)
-
-# dracula = Player(_Type.DRACULA)
-# van = Player(_Type.VAN_HELSING)
-# # End of :Pre game
-
-# # Game Starts:
-
-# # loop for rounds
-# for r in range(5):
-  
-#   def prompt(prompt: str):
-#   # Gives a brief summery of current situation of thr game
-#     brief = f"""Round \033[91m {r+1}\033[00m
-# Alive: \033[96m {people}\033[00m
-# The Trump Color is \"{Colors(color_ranking[0]).name.title()}\""""
-    
-#     cl()
-#     size = { 0: os.get_terminal_size().lines, 1: os.get_terminal_size().columns }
-#     con = str(brief+"\n___________________________\n"+prompt)
-#     line_count = con.count("\n") + 1
-    
-    
-#     print(con, end="")
-#     ns = ""
-#     for _ in range(0, size[0] - line_count):
-#       ns += "\n"
-#     print(ns + "\nPress Enter to continue...", end="")
-#     input()
-  
-#   dracula.cards = card_stack[-5:]
-#   del card_stack[-5:]
-
-#   van.cards = card_stack[-5:]
-#   del card_stack[-5:]
-    
-#   switch = True
-#   prompt("Hello and welcome!")
-#   # :a loop for turns
-#   while (True):
-    
-#     # Switch player each turn
-#     player, opponent = (van, dracula) if switch else (dracula, van)
-    
-#     cl()
-#     op_cards = list(map(lambda card: f"{card[0].c} {card[0].value} in District {card[1]}", opponent.revealed_cards)) if opponent.has_revealed_card else ""
-
-#     prompt(f"""It's {player.name}'s turn!\n
-# Cards in your tray:
-# {list(map(lambda card: f"{card.c} {card.value}{" REVEALED" if card.rev else "" }", player.cards))}
-# {op_cards}"""
-# )
-#     input()
-#     if opponent.has_revealed_card: 
-#       print(f"Your's revealed cards: {list(map(lambda card: f"{card[0].c} {card[0].value} in District {card[1]}", player.revealed_cards))}")
-
-#     drawn_card = card_stack.pop()
-#     print(f"The drawn card is \"{drawn_card.c} {drawn_card.value}\"\n")
-#     print("What will it be?\n1. Dismiss\n2. Replace\n\n")
-
-#     inp = int(input())
-#     match inp:
-#       case 1:
-#         match 7:#drawn_card.value:
-#           case 1:
-#             # Reveal one of your cards.
-#             print("Choose a district to reveal:")
-#             inp = int(input())
-#             player.reveal(inp-1)
-            
-#           case 2:
-#             # Reveal the top card of the deck.
-#             print(f"The next card is {card_stack[-1]}")
-            
-#           case 3:
-#             print("Choose a district to reveal your opponent's card:")
-#             inp = int(input())
-#             opponent.reveal(inp-1)
-            
-#           case 4:
-#             # Swap two of your cards
-#             print("Choose the first district to swap:")
-#             print(f"Cards in your tray: "+
-#                   {list(map(lambda card: f"{card.c} {card.value}", player.cards))})
-#             first = int(input())
-            
-#             print("Choose the second district to swap:")
-#             print(f"Cards in your tray: " +
-#                   {list(map(lambda card: f"{card.c} {card.value}", player.cards))})
-#             sec = int(input())
-            
-#             player.swap(first-1, sec-1)
-            
-#           case 5:
-#             # Play another turn. This effect applies even if your
-#             # opponent has called the end of the round on their turn.
-#             print("sakht shod ke baba :(")
-            
-#           case 6:
-#             # Swap (trade) one of your cards with your opponent.
-#             # Both cards must face the same District.
-#             print("Choose the second district to trade:")
-#             district = int(input())
-#             player.trade(district-1, opponent)
-#             pass
-          
-#           case 7:
-#             # Swap the Trump Color Token with another Color Token
-#             print(f"The current Trump Color is {Colors(color_ranking[0]).name}\n"+
-#                   f"Other colors in order:")
-#             for i, color in enumerate(color_ranking[1:]):
-#               print(f"{i+1}. {Colors(color).name}")
-#             print("\nWhats the new Trump Color?")
-#             new_trump = int(input())
-#             color_ranking[0], color_ranking[new_trump-1] = color_ranking[new_trump-1], color_ranking[0]
-
-#           case 8:
-#             # You can’t discard an 8 unless there are at least 6 cards in 
-#             # the discard pile. Immediately end the round. 
-#             # Your opponent does not play their turn.
-#             if len(discard_pile) > 5:
-#               break
-
-#       case 2:
-#         pass # :Replace
-      
-#       case 3:
-#         last_turn = True
-#         continue
-#     break
-  
-  
-#   print(f"Round {r+1} has finished")
-#   card_stack = init_stack[:]
-#   random.shuffle(card_stack)
-  
-# else:
-#   print("All rounds are finished without Van-Helsing winning... so: Dracula Wins!!")
