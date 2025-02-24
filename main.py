@@ -2,6 +2,7 @@ from enum import Enum
 import random
 import os
 from time import sleep
+from datetime import datetime, timezone
 
 os.system("mode con: cols=80 lines=30") 
 sleep(1)
@@ -24,6 +25,7 @@ class _Type(Enum):
   DRACULA = 0
   VAN_HELSING = 1
   
+date = datetime.now(timezone.dst)
   
 class Card():
   def __init__( self, color: Colors, value: int ):
@@ -85,6 +87,8 @@ class Player():
     return text
   
   def view_revealed( self ) -> str:
+    if not self.has_revealed_card:
+      return "No cards have been revealed yet."
     text = ""
     for i, card in enumerate( self.revealed_cards ):
       text += f"{ str.upper( chr( i + ord( "a" ) ) ) }. { card[0].view() } in District { card[1] }, "
@@ -152,9 +156,26 @@ class Game():
     self.prompt( "Hello and welcome!" )
 
     for r in range( 5 ):
+      # Things that happen each round
       self.rounds = r + 1
-      self.round()
-    
+  
+      self.dracula.cards = self.card_stack[ :5 ]
+      del self.card_stack[ :5 ]
+      
+      self.van.cards = self.card_stack[ :5 ]
+      del self.card_stack[ :5 ]
+      
+      self.player, self.opponent = self.van, self.dracula
+      
+      while True:
+        fin = self.turn()
+        if fin == 1:
+          self.turn()
+          break
+      
+      self.prompt( "End of the round!" )
+      self.check_win()
+
     self.rounds = 0
     self.prompt( "All rounds are finished without Van-Helsing winning... so: Dracula Wins!!" )
   
@@ -169,34 +190,27 @@ class Game():
   
     return 0  
   
-  def round( self ):
-    # Things that happen each round
+  def turn( self, switch: bool | None = True ):
+    # Things that happen each turn
     
-    self.dracula.cards = self.card_stack[ :5 ]
-    del self.card_stack[ :5 ]
+    self.player, self.opponent = ( self.opponent, self.player ) if switch else ( self.player, self.opponent )
     
-    self.van.cards = self.card_stack[ :5 ]
-    del self.card_stack[ :5 ]
-    
-    self.player, self.opponent = self.van, self.dracula
-    switch = True
+    pro = f"It's { self.player.name }'s turn!\n"
+    pro += f"Cards in your tray:\n{ self.player.view_cards() }\n"
+    drawn_card = self.card_stack.pop()
+    pro += f"The drawn card is: \"{drawn_card.view()}\"\n\n"
+    pro += f"What will it be?\n{colorify( "1. Dismiss\n", Colors.GREEN ) }{colorify( "2. Replace\n", Colors.BLUE )}"
 
-    while True:
-      # Each turn
-      self.player, self.opponent = ( self.opponent, self.player ) if switch else ( self.player, self.opponent )
-      
-      pro = f"It's { self.player.name }'s turn!\n"
-      pro += f"Cards in your tray:\n{ self.player.view_cards() }\n"
-      drawn_card = self.card_stack.pop()
-      pro += f"The drawn card is: \"{drawn_card.view()}\"\n\n"
-      pro += f"What will it be?\n{colorify( "1. Dismiss\n", Colors.GREEN ) }{colorify( "2. Replace\n", Colors.BLUE )}"
-
-      choice: int = self.ask( pro )
-      
-      if choice == 1:
+    choice: int = self.ask( pro )
+    
+    match choice:
+      case 1:
         self.dismiss( drawn_card )
-      else:
+      case 2:
         self.replace( drawn_card )
+      case 3:
+        return 1 # End the round
+      
       
   def dismiss( self, drawn_card: Card ):
     match drawn_card.value:
@@ -216,17 +230,17 @@ class Game():
       case 4:
         # Swap two of your cards
         first = self.ask(f"""Choose the first district to swap:
-Cards in your tray: {self.player.view_cards()}""")
+Cards in your tray:\n{self.player.view_cards()}""")
         
         sec = self.ask(f"""Choose the second district to swap:
-Cards in your tray: {self.player.view_cards()}""")
+Cards in your tray:\n{self.player.view_cards()}""")
 
         self.player.swap(first-1, sec-1)
 
       case 5:
         # Play another turn. This effect applies even if your
         # opponent has called the end of the round on their turn.
-        self.prompt("sakht shod ke baba :(")
+        self.turn( False )
         
       case 6:
         # Swap (trade) one of your cards with your opponent.
@@ -248,7 +262,13 @@ Cards in your tray: {self.player.view_cards()}""")
           pass
 
     self.discard_pile.append(drawn_card)
-        
+    
+  def replace( self, drawn_card: Card ):
+    pro = f"Which card will you replace?\n"
+    pro += f"{self.player.view_cards()}"
+    choice = self.ask(pro)
+    self.dismiss(self.player.cards[choice-1])
+    self.player.cards[choice-1] = drawn_card
 
   def brief( self ) -> str:
     # Gives a brief report of game state
@@ -257,10 +277,10 @@ Cards in your tray: {self.player.view_cards()}""")
     final = ""
     if self.rounds > 0:
       final += colorify( f"Round {self.rounds}\n", Colors.BLUE )
-      final += f"The Trump Color is \"{self.color_ranking.get_trump()}\"\n\n"
+      final += f"The Trump Color is \"{self.color_ranking.get_trump()}\"\n"
       final += colorify( f"Dracula's HP: {self.dracula.hp}\n\n", Colors.RED )
-      final += f"    Van's revealed cards: {self.van.view_revealed()}\n"
-      final += f"                   Alive: {self.people}\n"
+      final += f"Alive: {self.people}\n"
+      final += f"Van's revealed cards: {self.van.view_revealed()}\n"
       final += f"Dracula's revealed cards: {self.dracula.view_revealed()}\n"
       final += "\n___________________________\n\n"
       
