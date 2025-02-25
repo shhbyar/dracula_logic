@@ -128,7 +128,6 @@ class Game():
       self.colors[0], self.colors[ new_trump - 1 ] = self.colors[ new_trump - 1 ], self.colors[0]
 
   def __init__( self ):
-    self.stat : bool = False # Whether the game has started.
     self.rounds = 0
     self.dracula = Player( _Type.DRACULA )
     self.van = Player( _Type.VAN_HELSING )
@@ -142,7 +141,7 @@ class Game():
     self.card_stack = []
     
   def start( self ):
-    self.prompt( "Hello and welcome!" )
+    self.prompt( "Welcome to the game of Dracula vs Van-Helsing!" )
 
     for r in range( 5 ):
       # Things that happen each round
@@ -332,7 +331,7 @@ Cards in your tray:\n{self.player.view_cards()}""")
     if self.rounds > 0:
       final += colorify( f"Round {self.rounds}\n", Colors.BLUE )
       final += self.color_ranking.view_ordered()
-      final += colorify( f"Dracula's HP: {self.dracula.hp}\n\n", Colors.RED )
+      final += colorify( f"Dracula's HP: {self.dracula.hp}\n", Colors.RED )
       final += f"Alive: {self.people}\n"
       final += f"Van's revealed cards: {self.van.view_revealed()}\n"
       final += f"Dracula's revealed cards: {self.dracula.view_revealed()}\n"
@@ -396,7 +395,13 @@ Cards in your tray:\n{self.player.view_cards()}""")
   def clear( self ):
     os.system( "cls" )
     
-  
+
+columns, lines = os.get_terminal_size()
+
+while columns < 80 or lines < 30:
+  print( f"Please resize your terminal to at least 80x40, currently at {columns}x{lines}" )
+  input( "And press Enter to continue..." )
+  columns, lines = os.get_terminal_size()
 
 while True:
   game = Game()
