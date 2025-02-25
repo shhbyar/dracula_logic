@@ -1,17 +1,6 @@
 from enum import Enum
 import random
 import os
-from time import sleep
-
-os.system("mode con: cols=80 lines=30") 
-sleep(1)
-
-def cl():
-  os.system("cls")
-  
-def con():
-  input("\n\n\n\nPress Enter to continue...")
-  cl()
 
 class Colors(Enum):
   RED = 0
@@ -24,21 +13,6 @@ class _Type(Enum):
   DRACULA = 0
   VAN_HELSING = 1
   
-  
-class Card():
-  def __init__( self, color: Colors, value: int ):
-    # Initialize a card with a color and value
-    
-    self.color = color
-    self.value = value
-    self.c = str.title( Colors( color ).name )
-    self.rev = False
-    
-  def view( self ) -> str:
-    # Return a string representation of the card with color formatting
-    
-    text = colorify( f"{ str( self.value ) } { self.c }", self.color )
-    return text
   
 def colorify( text: str, color: Colors ):
   
@@ -68,7 +42,8 @@ def colorify( text: str, color: Colors ):
       style = "\033[93m"
     
   return f"{style}{text}{_end}"
-    
+
+
 class Player():
   def __init__(self, _type:_Type):
     self._type = _type
@@ -107,32 +82,47 @@ class Player():
     
   def trade(self, index: int, opponent):
     self.cards[index], opponent.cards[index] = opponent.cards[index], self.cards[index]
-  
+
+
+class Card():
+  def __init__( self, color: int, value: int ):
+    # Initialize a card with a color and value
+    
+    self.color: Colors = Colors( color )
+    self.value: int = value
+    self.c = str.title( Colors( color ).name )
+    self.rev = False
+    
+  def view( self ) -> str:
+    # Return a string representation of the card with color formatting
+    
+    text = colorify( f"{ str( self.value ) } { self.c }", self.color )
+    return text
+    
   
 class Game():
+  
+
   class ColorRanking():
     
     def __init__(self):
-
-      self.colors = list( range( 0, 4 ) )
+      self.colors: list[Colors] = [ Colors( color ) for color in range( 0, 4 ) ]
       random.shuffle( self.colors )
+    
+    def get( self, index: int ) -> str: return str.title( self.colors[index].name )
+
+    def get_trump( self ) -> str:
+      color_name = str.title( self.colors[0].name )
+      return colorify( color_name, self.colors[0] )
+    
+    def get_trump_color( self ) -> Colors: return self.colors[0]
       
-    def view( self ) -> str:
+    def view_ordered( self ) -> str:
       text = f"The current Trump Color is: \"{self.get_trump()}\"\n"
       text += "Other colors in order:\n"
       for i, color in enumerate( self.colors[1:] ):
-        text += f"{ i + 1 }. { str.title( Colors( color ).name ) }\n"
+        text += f"{ i + 1 }. { str.title( color.name ) }\n"
       return text
-      
-    def get_trump( self ) -> str:
-      color_name = str.title( Colors( self.colors[0] ).name )
-      return colorify( color_name, Colors( self.colors[0] ) )
-    
-    def get_trump_color( self ) -> Colors:
-      return Colors(self.colors[0])
-    
-    def get( self, index: int ) -> str:
-      return str.title( Colors( self.colors[index] ).name )
     
     def new_trump( self, new_trump: int ):
       self.colors[0], self.colors[ new_trump - 1 ] = self.colors[ new_trump - 1 ], self.colors[0]
@@ -185,14 +175,39 @@ class Game():
       if win == 1:
         self.rounds = 0
         self.prompt( "Dracula won this game!" )
-        break
+        return
       elif win == 2:
         self.rounds = 0
         self.prompt( "Van-Helsing won this game!" )
-        break
+        return
     
     self.rounds = 0
     self.prompt( "All rounds are finished without Van-Helsing winning... so: Dracula Wins!!" )
+    
+  def compare_cards( self, card1: Card, card2: Card ) -> bool:
+    """
+    Compares two cards and returns whether the first card wins or not.
+
+    Args:
+      card1 (Card): The first card to compare.
+      card2 (Card): The second card to compare.
+
+    Returns:
+      bool: True if the first card wins, False otherwise.
+    """
+    
+    trump_color = self.color_ranking.get_trump_color()
+
+    if card1.color == card2.color:
+      return card1.value > card2.value
+    elif card1.color == trump_color:
+      return True
+    elif card2.color == trump_color:
+      return False
+    elif card1.value == card2.value:
+      return self.color_ranking.colors.index(card1.color) < self.color_ranking.colors.index(card2.color)
+    else:
+      return card1.value > card2.value
   
   def check_win( self ) -> int:
     # Checks whether anyone has won
@@ -202,26 +217,14 @@ class Game():
 
     # check decks, one by one
     for i in range(5):
-      dracula_wins = False 
       text = f"Checking district {i+1}\nPeople Alive: {self.people[i]}\n"
       dracula_card: Card = self.dracula.cards[i]
       text += f"Dracula's card: {dracula_card.view()}\n"
       van_card: Card = self.van.cards[i]
       text += f"Van-Helsing's card: {van_card.view()}\n"
-      trump_color = self.color_ranking.get_trump_color()
+
       # check if one of the cards is trump and the other is not:
-      if ( dracula_card.color == van_card.color ):
-        dracula_wins = True if dracula_card.value > van_card.value else False
-      elif dracula_card.color == trump_color:
-        dracula_wins = True
-      elif van_card.color == trump_color:
-        dracula_wins = False
-      elif dracula_card.value == van_card.value:
-        dracula_index = self.color_ranking.colors.index(dracula_card.color)
-        van_index = self.color_ranking.colors.index(dracula_card.color)
-        dracula_wins = True if dracula_index > van_index else False
-      else:
-        dracula_wins = True if dracula_card.value > van_card.value else False
+      dracula_wins = self.compare_cards(dracula_card, van_card)
       
       if dracula_wins:
         text += "Dracula wins in this district!\n"
@@ -301,7 +304,7 @@ Cards in your tray:\n{self.player.view_cards()}""")
       
       case 7:
         # Swap the Trump Color Token with another Color Token
-        self.prompt( self.color_ranking.view() )
+        self.prompt( self.color_ranking.view_ordered() )
         new_trump = self.ask( "Whats the new Trump Color?" )
         self.color_ranking.new_trump( new_trump )
 
@@ -328,7 +331,7 @@ Cards in your tray:\n{self.player.view_cards()}""")
     final = ""
     if self.rounds > 0:
       final += colorify( f"Round {self.rounds}\n", Colors.BLUE )
-      final += f"The Trump Color is \"{self.color_ranking.get_trump()}\"\n"
+      final += self.color_ranking.view_ordered()
       final += colorify( f"Dracula's HP: {self.dracula.hp}\n\n", Colors.RED )
       final += f"Alive: {self.people}\n"
       final += f"Van's revealed cards: {self.van.view_revealed()}\n"
@@ -372,13 +375,14 @@ Cards in your tray:\n{self.player.view_cards()}""")
     try:
       _in = int(input())
     except ValueError:
-      self.ask(
+      _in = self.ask(
         text,
         colorify(
           "You should enter a number! Please enter a valid number this time:",
           Colors.RED
           )
       )
+      
     return _in
   
   def prompt( self, text: str ):
@@ -394,5 +398,6 @@ Cards in your tray:\n{self.player.view_cards()}""")
     
   
 
-game = Game()
-game.start()
+while True:
+  game = Game()
+  game.start()
