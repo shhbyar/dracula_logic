@@ -75,7 +75,8 @@ class Player():
   
   def fold_all(self):
     for card in self.cards: card.rev = False
-    del(self.revealed_cards[:])
+    self.has_revealed_card = False
+    self.revealed_districts.clear()
     
   def swap(self, first: int, sec: int):
     self.cards[first], self.cards[sec] = self.cards[sec], self.cards[first]
@@ -153,9 +154,11 @@ class Game():
   
       self.dracula.cards = self.card_stack[ :5 ]
       del self.card_stack[ :5 ]
+      self.dracula.fold_all()
       
       self.van.cards = self.card_stack[ :5 ]
       del self.card_stack[ :5 ]
+      self.van.fold_all()
       
       self.player, self.opponent = self.van, self.dracula
       
