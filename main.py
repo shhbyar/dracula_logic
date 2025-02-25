@@ -2,7 +2,6 @@ from enum import Enum
 import random
 import os
 from time import sleep
-from datetime import datetime, timezone
 
 os.system("mode con: cols=80 lines=30") 
 sleep(1)
@@ -25,7 +24,6 @@ class _Type(Enum):
   DRACULA = 0
   VAN_HELSING = 1
   
-date = datetime.now(timezone.dst)
   
 class Card():
   def __init__( self, color: Colors, value: int ):
@@ -76,9 +74,9 @@ class Player():
     self._type = _type
     self.cards, self.deck = ([],) * 2
     self.hp = 12
-    self.revealed_cards: list[Card] = []
     self.has_revealed_card = False
     self.name = str.title(_Type(self._type).name)
+    self.revealed_districts = []
     
   def view_cards( self ) -> str:
     text = ""
@@ -90,13 +88,14 @@ class Player():
     if not self.has_revealed_card:
       return "No cards have been revealed yet."
     text = ""
-    for i, card in enumerate( self.revealed_cards ):
-      text += f"{ str.upper( chr( i + ord( "a" ) ) ) }. { card[0].view() } in District { card[1] }, "
+    for i in self.revealed_districts:
+      text += f"In District { i + 1 }, { self.cards[i].view() } was revealed."
     return text
 
   def reveal(self, index: int):
+    # Should save revealed district not the card!
+    self.revealed_districts.append(index)
     self.cards[index].rev = True
-    self.revealed_cards.append({0: self.cards[index], 1: index+1})
     self.has_revealed_card = True
   
   def fold_all(self):
@@ -126,9 +125,11 @@ class Game():
       return text
       
     def get_trump( self ) -> str:
-  
       color_name = str.title( Colors( self.colors[0] ).name )
       return colorify( color_name, Colors( self.colors[0] ) )
+    
+    def get_trump_color( self ) -> Colors:
+      return Colors(self.colors[0])
     
     def get( self, index: int ) -> str:
       return str.title( Colors( self.colors[index] ).name )
@@ -148,9 +149,7 @@ class Game():
     for i in range( 0, 4 ):
       for j in range( 1, 9 ):
         self.init_stack.append( Card( i, j ) )
-    self.card_stack = self.init_stack
-
-    random.shuffle(self.card_stack)
+    self.card_stack = []
     
   def start( self ):
     self.prompt( "Hello and welcome!" )
@@ -158,6 +157,10 @@ class Game():
     for r in range( 5 ):
       # Things that happen each round
       self.rounds = r + 1
+      
+      self.card_stack.clear()
+      self.card_stack.extend( self.init_stack )
+      random.shuffle(self.card_stack)
   
       self.dracula.cards = self.card_stack[ :5 ]
       del self.card_stack[ :5 ]
@@ -172,10 +175,22 @@ class Game():
         if fin == 1:
           self.turn()
           break
+        if self.card_stack == []:
+          self.prompt( "End of the round!" )
+          break
       
       self.prompt( "End of the round!" )
-      self.check_win()
-
+      win = self.check_win()
+      
+      if win == 1:
+        self.rounds = 0
+        self.prompt( "Dracula won this game!" )
+        break
+      elif win == 2:
+        self.rounds = 0
+        self.prompt( "Van-Helsing won this game!" )
+        break
+    
     self.rounds = 0
     self.prompt( "All rounds are finished without Van-Helsing winning... so: Dracula Wins!!" )
   
@@ -184,10 +199,46 @@ class Game():
     # 0: No onw has won yet
     # 1: Dracula has won
     # 2: Van-Helsing has won
-    
-    if self.dracula.hp == 0: 
-      return 2
-  
+
+    # check decks, one by one
+    for i in range(5):
+      dracula_wins = False 
+      text = f"Checking district {i+1}\nPeople Alive: {self.people[i]}\n"
+      dracula_card: Card = self.dracula.cards[i]
+      text += f"Dracula's card: {dracula_card.view()}\n"
+      van_card: Card = self.van.cards[i]
+      text += f"Van-Helsing's card: {van_card.view()}\n"
+      trump_color = self.color_ranking.get_trump_color()
+      # check if one of the cards is trump and the other is not:
+      if ( dracula_card.color == van_card.color ):
+        dracula_wins = True if dracula_card.value > van_card.value else False
+      elif dracula_card.color == trump_color:
+        dracula_wins = True
+      elif van_card.color == trump_color:
+        dracula_wins = False
+      elif dracula_card.value == van_card.value:
+        dracula_index = self.color_ranking.colors.index(dracula_card.color)
+        van_index = self.color_ranking.colors.index(dracula_card.color)
+        dracula_wins = True if dracula_index > van_index else False
+      else:
+        dracula_wins = True if dracula_card.value > van_card.value else False
+      
+      if dracula_wins:
+        text += "Dracula wins in this district!\n"
+        self.people[i] -= 1
+      else:
+        text += "Van-Helsing wins in this district!\n"
+        self.dracula.hp -= 1
+      
+      self.prompt(text)
+      
+      if self.dracula.hp == 0:
+        self.prompt("Van-Helsing wins!")
+        return 2
+      elif any( people == 0 for people in self.people ):
+        self.prompt("Dracula wins!")
+        return 1
+
     return 0  
   
   def turn( self, switch: bool | None = True ) -> bool:
@@ -199,7 +250,7 @@ class Game():
     pro += f"Cards in your tray:\n{ self.player.view_cards() }\n"
     drawn_card = self.card_stack.pop()
     pro += f"The drawn card is: \"{drawn_card.view()}\"\n\n"
-    pro += f"What will it be?\n{colorify( "1. Dismiss\n", Colors.GREEN ) }{colorify( "2. Replace\n", Colors.BLUE )}"
+    pro += f"What will it be?\n{colorify( "1. Dismiss\n", Colors.GREEN ) }{colorify( "2. Replace\n", Colors.BLUE )}{colorify( "3. End Game\n", Colors.RED )}"
 
     choice: int = self.ask( pro )
     
@@ -221,7 +272,7 @@ class Game():
         
       case 2:
         # Reveal the top card of the deck.
-        self.prompt(f"The next card is {self.card_stack[-1]}")
+        self.prompt(f"The next card is {self.card_stack[-1].view()}")
         
       case 3:
         inp = self.ask("Choose a district to reveal your opponent's card:")
@@ -282,6 +333,7 @@ Cards in your tray:\n{self.player.view_cards()}""")
       final += f"Alive: {self.people}\n"
       final += f"Van's revealed cards: {self.van.view_revealed()}\n"
       final += f"Dracula's revealed cards: {self.dracula.view_revealed()}\n"
+      final += f"cards left in stack: {len(self.card_stack)}\n"
       final += "\n___________________________\n\n"
       
       
