@@ -190,7 +190,7 @@ class Game():
   
     return 0  
   
-  def turn( self, switch: bool | None = True ):
+  def turn( self, switch: bool | None = True ) -> bool:
     # Things that happen each turn
     
     self.player, self.opponent = ( self.opponent, self.player ) if switch else ( self.player, self.opponent )
